@@ -1,36 +1,42 @@
 """
-Главный модуль
+Модуль запуска
 """
 import os
 
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler
 
-from bot.handlers import start, data_import, generate_report, search_group, join_to_group
 from config import logging_init
 from database.db_init import database_init
+from handlers import start, search_group, join_to_group, send_contact_response, error_handler, import_data, open_group
+
+SHEET_ID = os.getenv('WOL_HOME_GROUP_SHEET_ID')
+YOUTH_TABLE_ID = os.getenv('WOL_HOME_GROUP_YOUTH_ID')
+GENERAL_TABLE_ID = os.getenv('WOL_HOME_GROUP_GENERAL_ID')
 
 TOKEN = os.getenv('BOT_TOKEN')
 
 
-def main() -> None:
+def handlers_register(bot):
     """
-    Создаем и запускаем бота
+    Добавление всех хендлеров
     """
-    application = ApplicationBuilder().token(TOKEN).build()
+    bot.add_handler(CommandHandler('start', start))
+    bot.add_handler(CommandHandler('import', import_data))
+    bot.add_handler(MessageHandler(filters.Text(['Искать домашнюю группу']), start))
+    bot.add_handler(MessageHandler(filters.TEXT, search_group))
+    bot.add_handler(CallbackQueryHandler(join_to_group, pattern='join_to_group'))
+    bot.add_handler(CallbackQueryHandler(open_group, pattern='open_group'))
+    bot.add_handler(MessageHandler(filters.CONTACT, send_contact_response))
+    bot.add_error_handler(error_handler)
 
-    start_handler = CommandHandler('start', start)
-    search_handler = MessageHandler(filters.TEXT & ~filters.Regex(r'Отчет|Импорт'), search_group)
-    add_to_group_handler = CallbackQueryHandler(join_to_group, pattern='add_to_group')
-    import_handler = MessageHandler(filters.Text(['Импорт']), data_import)
-    report_handler = MessageHandler(filters.Text(['Отчет']), generate_report)
 
-    application.add_handler(start_handler)
-    application.add_handler(search_handler)
-    application.add_handler(add_to_group_handler)
-    application.add_handler(import_handler)
-    application.add_handler(report_handler)
-
-    application.run_polling()
+def main():
+    """
+    Старт бота
+    """
+    bot = ApplicationBuilder().token(TOKEN).build()
+    handlers_register(bot)
+    bot.run_polling()
 
 
 if __name__ == '__main__':

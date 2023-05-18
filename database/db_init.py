@@ -1,13 +1,11 @@
-import logging
-
 from database.db_connection import connect_to_bot
-from models.group import Group
-from models.group_leader import GroupLeader
-from models.join_request import JoinRequest
-from models.leader_groups import LeaderGroups
-from models.region_leader import RegionLeader
-from models.regional_group import RegionalGroupLeaders
-from models.user import User
+from models.group_leader_model import GroupLeader
+from models.group_model import Group
+from models.join_request_model import JoinRequest
+from models.leader_groups_model import LeaderGroups
+from models.region_leader_model import RegionLeader
+from models.regional_group_model import RegionalGroupLeaders
+from models.user_model import User
 
 
 def database_init():
@@ -15,13 +13,6 @@ def database_init():
     Проверяет и создает таблицы
     """
     tables = [User, RegionLeader, GroupLeader, RegionalGroupLeaders, Group, LeaderGroups, JoinRequest]
-    try:
-        connect_to_bot.connect(reuse_if_open=True)
-        logging.info('Выполнено подключение к БД')
+    with connect_to_bot:
         for table in tables:
             table.create_table(safe=True)
-        logging.info('Проверка и создание таблиц завершены')
-    except Exception as exception:
-        logging.error('An error occurred while parsing data from hub: %d', exception)
-    finally:
-        connect_to_bot.close()
