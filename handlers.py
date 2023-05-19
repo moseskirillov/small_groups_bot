@@ -14,6 +14,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKe
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
+from conversation import PICK_GROUP_TEXT
 from data_import import parse_data_from_hub, parse_data_from_google
 from database.db_connection import connect_to_bot
 from models.group_leader_model import GroupLeader
@@ -50,9 +51,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
+        parse_mode=ParseMode.HTML,
         text=f'Привет, {update.effective_chat.first_name}!\n'
-             f'Чтобы найти домашнюю группу, напишите ближайшую станцию метро',
-        reply_markup=ReplyKeyboardRemove()
+             f'Чтобы найти домашнюю группу, напишите <b>название станции метро</b>, или нажмите кнопку внизу для подбора',
+        reply_markup=ReplyKeyboardMarkup([[KeyboardButton(text=PICK_GROUP_TEXT)]], resize_keyboard=True)
     )
 
 
@@ -60,6 +62,8 @@ async def search_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Обработчик поиска ДГ
     """
+    if context.user_data.get('in_conversation'):
+        return
     with connect_to_bot.atomic():
         found_groups = (
             Group.select()
@@ -88,6 +92,12 @@ async def search_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     [InlineKeyboardButton('Присоединиться', callback_data='join_to_group')]
                 ])
             )
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='Чтобы искать на другой станции метро, введите ее название или нажмите на кнопку подбора',
+            disable_web_page_preview=True,
+            reply_markup=ReplyKeyboardMarkup([[KeyboardButton(text=PICK_GROUP_TEXT)]], resize_keyboard=True)
+        )
     else:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
