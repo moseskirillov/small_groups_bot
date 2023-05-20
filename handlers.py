@@ -1,34 +1,31 @@
-"""
-Все обработчики бота
-"""
+import html
 import json
 import logging
 import os
 import textwrap
 import traceback
-from pydoc import html
 
 from peewee import fn
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, \
-    ReplyKeyboardRemove
+from telegram import Update, ReplyKeyboardRemove
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
-from conversation import PICK_GROUP_TEXT
 from data_import import parse_data_from_hub, parse_data_from_google
 from database.db_connection import connect_to_bot
+from keyboards import search_is_empty_keyboard, return_to_start_keyboard, send_contact_keyboard, start_keyboard, \
+    join_to_group_keyboard, another_search_keyboard, return_to_start_inline_keyboard
 from models.group_leader_model import GroupLeader
 from models.group_model import Group
 from models.join_request_model import JoinRequest
 from models.region_leader_model import RegionLeader
 from models.regional_group_model import RegionalGroupLeaders
 from models.user_model import User
+from sheets import add_new_join_request
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обработчик команды старт
-    """
+    context.user_data['in_conversation'] = False
+
     with connect_to_bot.atomic():
         User.get_or_create(
             user_id=update.effective_message.from_user.id,
@@ -49,21 +46,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             regional_leader.telegram_id = update.effective_message.from_user.id
             regional_leader.save()
 
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
+    await update.message.reply_text(
         parse_mode=ParseMode.HTML,
         text=f'Привет, {update.effective_chat.first_name}!\n'
-             f'Чтобы найти домашнюю группу, напишите <b>название станции метро</b>, или нажмите кнопку внизу для подбора',
-        reply_markup=ReplyKeyboardMarkup([[KeyboardButton(text=PICK_GROUP_TEXT)]], resize_keyboard=True)
+             f'Чтобы найти домашнюю группу, напишите '
+             f'<b>название станции метро</b>, или нажмите одну из кнопок',
+        reply_markup=start_keyboard
     )
 
 
 async def search_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обработчик поиска ДГ
-    """
     if context.user_data.get('in_conversation'):
         return
+
     with connect_to_bot.atomic():
         found_groups = (
             Group.select()
@@ -82,25 +77,22 @@ async def search_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
                          f'Лидер: <b>{group.leader.name}</b>'
             context.user_data['home_group_leader_id'] = group.leader
             context.user_data['home_group_info_text'] = home_group
-
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
+            context.user_data['home_group_is_youth'] = \
+                group.age == 'Молодежные (до 25)' or group.age == 'Молодежные (после 25)'
+            await update.message.reply_text(
                 text=home_group,
                 parse_mode=ParseMode.HTML,
                 disable_web_page_preview=True,
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton('Присоединиться', callback_data='join_to_group')]
-                ])
+                reply_markup=join_to_group_keyboard
             )
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text='Чтобы искать на другой станции метро, введите ее название или нажмите на кнопку подбора',
+
+        await update.message.reply_text(
+            text='Чтобы искать на другой станции метро, введите ее название или нажмите на одну из кнопок',
             disable_web_page_preview=True,
-            reply_markup=ReplyKeyboardMarkup([[KeyboardButton(text=PICK_GROUP_TEXT)]], resize_keyboard=True)
+            reply_markup=another_search_keyboard
         )
     else:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
+        await update.message.reply_text(
             text='К сожалению, на этой станции пока нет домашних групп.\n'
                  'Можете ввести другую станцию метро, '
                  'или посмотреть все домашние группы '
@@ -108,38 +100,42 @@ async def search_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
                  'Также вы можете связаться с администратором для подбора ближайшей группы',
             parse_mode=ParseMode.HTML,
             disable_web_page_preview=True,
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton('Написать администратору', url='https://t.me/kirillsemiletov')],
-                [InlineKeyboardButton('Открыть свою группу', callback_data='open_group')]
-            ])
+            reply_markup=search_is_empty_keyboard
         )
 
 
+async def search_by_button(update: Update, _):
+    await update.message.reply_text(
+        text='Чтобы найти домашнюю группу, напишите <b>название станции метро</b>',
+        parse_mode=ParseMode.HTML,
+        reply_markup=return_to_start_inline_keyboard
+    )
+
+
 async def join_to_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обработчик запроса на присоединение к ДГ
-    """
     await update.callback_query.answer()
 
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text='Нажмите на кнопку чтобы отправить Ваш контакт и лидер домашней группы свяжется с Вами',
+        reply_markup=send_contact_keyboard
+    )
+
+
+async def return_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.callback_query:
+        await update.callback_query.answer()
+
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
         parse_mode=ParseMode.HTML,
-        disable_web_page_preview=True,
-        reply_markup=ReplyKeyboardMarkup([
-            [KeyboardButton('Отправить контакт', request_contact=True)]
-        ], resize_keyboard=True)
+        text='Чтобы найти домашнюю группу, напишите '
+             '<b>название станции метро</b>, или нажмите одну из кнопок',
+        reply_markup=start_keyboard
     )
 
 
 async def send_contact_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обработчик ответа на присоединение к ДГ
-    """
-    reply_keyboard = ReplyKeyboardMarkup([
-        [KeyboardButton('Искать домашнюю группу')]
-    ], resize_keyboard=True)
-
     is_open_group = context.chat_data.get('open_group')
     ministry_leader_chat_id = os.getenv('MINISTRY_LEADER')
 
@@ -147,21 +143,18 @@ async def send_contact_response(update: Update, context: ContextTypes.DEFAULT_TY
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text='Спасибо! Лидер служения свяжется с Вами',
-            parse_mode=ParseMode.HTML,
             disable_web_page_preview=True,
-            reply_markup=reply_keyboard
+            reply_markup=return_to_start_keyboard
         )
         await context.bot.send_message(
             chat_id=ministry_leader_chat_id,
             text='Новый человек хочет открыть домашнюю группу. Вот его контакт:\n',
-            parse_mode=ParseMode.HTML
         )
         await context.bot.send_contact(
             chat_id=ministry_leader_chat_id,
             contact=update.message.contact
         )
         context.chat_data.clear()
-
     else:
         group_leader_id = context.user_data['home_group_leader_id']
         group_info_text = context.user_data['home_group_info_text']
@@ -186,74 +179,59 @@ async def send_contact_response(update: Update, context: ContextTypes.DEFAULT_TY
             )
             JoinRequest.create(leader=group_leader, user=user)
 
-        # Отправка сообщения пользователю
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
+        await update.message.reply_text(
             text='Спасибо! Лидер домашней группы свяжется с Вами',
-            parse_mode=ParseMode.HTML,
-            disable_web_page_preview=True,
-            reply_markup=reply_keyboard
+            reply_markup=return_to_start_keyboard
         )
 
-        # Отправка сообщения лидеру домашней группы
         group_leader_chat_id = group_leader.telegram_id or os.getenv('ADMIN_ID')
-        group_leader_message = (
-            f'{update.effective_chat.first_name} '
-            f'{update.effective_chat.last_name} '
-            f'хочет присоединиться к Вашей домашней группе.\n'
-            f'Вот его/ее контакт:'
-        )
         await context.bot.send_message(
             chat_id=group_leader_chat_id,
-            text=group_leader_message,
-            parse_mode=ParseMode.HTML
+            text=f'{update.effective_chat.first_name} '
+                 f'{update.effective_chat.last_name} '
+                 f'хочет присоединиться к Вашей домашней группе. '
+                 f'Вот его/ее контакт:',
         )
         await context.bot.send_contact(
             chat_id=group_leader_chat_id,
             contact=update.message.contact
         )
 
-        # Отправка сообщения региональному лидеру
         regional_leader_chat_id = regional_leader.telegram_id or os.getenv('ADMIN_ID')
-        regional_leader_message = (
-            f'{update.effective_chat.first_name} '
-            f'{update.effective_chat.last_name} '
-            f'хочет присоединиться к домашней группе Вашего региона\n\n'
-            f'Вот информация о группе и контакт человека: \n\n'
-            f'{group_info_text}'
-        )
         await context.bot.send_message(
             chat_id=regional_leader_chat_id,
-            text=regional_leader_message,
+            text=f'{update.effective_chat.first_name} '
+                 f'{update.effective_chat.last_name} '
+                 f'хочет присоединиться к домашней группе Вашего региона\n\n'
+                 f'Вот информация о группе и контакт человека: \n\n'
+                 f'{group_info_text}',
             parse_mode=ParseMode.HTML
         )
         await context.bot.send_contact(
             chat_id=regional_leader_chat_id,
             contact=update.message.contact
+        )
+        add_new_join_request(
+            user.first_name,
+            user.last_name,
+            user.telegram_login,
+            group_leader.name,
+            regional_leader.name,
+            context.user_data['home_group_is_youth']
         )
 
 
 async def open_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обработчик callback по открытию своей ДГ
-    """
     context.chat_data['open_group'] = True
     await update.callback_query.answer()
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text='Нажмите на кнопку чтобы отправить Ваш контакт и лидер служения домашних групп  свяжется с Вами',
-        parse_mode=ParseMode.HTML,
-        disable_web_page_preview=True,
-        reply_markup=ReplyKeyboardMarkup([
-            [KeyboardButton('Отправить контакт', request_contact=True)]
-        ], resize_keyboard=True)
+        text='Нажмите на кнопку чтобы отправить Ваш контакт и лидер служения домашних групп свяжется с Вами',
+        reply_markup=send_contact_keyboard
     )
 
 
 async def import_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Импорт из БД хаба и Google
-    """
     with connect_to_bot:
         user = User.get_or_none(user_id=update.effective_chat.id)
         if user is not None and user.is_admin:
@@ -266,9 +244,6 @@ async def import_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обработчик исключений
-    """
     logging.error('Произошла ошибка при работе бота:', exc_info=context.error)
     tb_list = traceback.format_exception(None, context.error, context.error.__traceback__)
     tb_string = ''.join(tb_list)
@@ -285,11 +260,13 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     with connect_to_bot:
         for i, part in enumerate(wrapped_traceback):
             traceback_message = f'<pre>{html.escape(part)}</pre>'
-            message = f'{error_message}\n<pre>Стек-трейс, часть {i + 1} из {len(wrapped_traceback)}</pre>\n\n{traceback_message}'
+            message = f'{error_message}\n' \
+                      f'<pre>Стек-трейс, часть {i + 1} из ' \
+                      f'{len(wrapped_traceback)}</pre>\n\n' \
+                      f'{traceback_message}'
             await context.bot.send_message(chat_id=os.getenv('ADMIN_ID'), text=message, parse_mode=ParseMode.HTML)
 
         await context.bot.send_message(
             chat_id=update.effective_chat.id, text='Произошла ошибка при работе бота. Пожалуйста, попробуйте позже',
-            parse_mode=ParseMode.HTML,
             reply_markup=ReplyKeyboardRemove()
         )

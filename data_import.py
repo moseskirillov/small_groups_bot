@@ -1,6 +1,3 @@
-"""
-Парсинг данных из базы и таблиц
-"""
 import os
 
 import pandas
@@ -19,9 +16,6 @@ URL = 'https://docs.google.com/spreadsheets/d/{}/export?format=csv&gid={}'
 
 
 def parse_data_from_hub():
-    """
-    Сохранение ДГ из хаба
-    """
     with connect_to_wolrus_hub, connect_to_bot.atomic():
         with connect_to_wolrus_hub.cursor() as cursor:
             cursor.execute('select subway, weekday, time_of_hg, type_age, type_of_hg, name_leader '
@@ -45,9 +39,6 @@ def parse_data_from_hub():
 
 
 def parse_data_from_google(table_id):
-    """
-    Добавление телеграм из Google таблиц
-    """
     data_from_google = pandas.read_csv(URL.format(SHEET_ID, table_id)).values
     leader_name_cell = 2 if table_id == GENERAL_TABLE_ID else 1
     leader_tg_cell = 4 if table_id == GENERAL_TABLE_ID else 6

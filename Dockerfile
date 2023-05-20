@@ -7,5 +7,6 @@ COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY . /app
+COPY ./google_creeds.json .
 WORKDIR /app
 CMD ["python", "main.py"]

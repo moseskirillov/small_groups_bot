@@ -9,9 +9,6 @@ from models.user_model import User
 
 
 def database_init():
-    """
-    Проверяет и создает таблицы
-    """
     tables = [User, RegionLeader, GroupLeader, RegionalGroupLeaders, Group, LeaderGroups, JoinRequest]
     with connect_to_bot:
         for table in tables:

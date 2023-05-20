@@ -1,83 +1,73 @@
-from telegram import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, Update
+from telegram import Update
 from telegram.constants import ParseMode
-from telegram.ext import ContextTypes, ConversationHandler, MessageHandler, filters
+from telegram.ext import ConversationHandler, ContextTypes, MessageHandler, filters
 
 from database.db_connection import connect_to_bot
+from keyboards import search_is_empty_keyboard, PICK_GROUP_TEXT, RETURN_BUTTON_TEXT, join_to_group_keyboard, \
+    start_keyboard, conversation_days_keyboard, conversation_age_keyboard, conversation_type_keyboard, \
+    conversation_result_keyboard
 from models.group_model import Group
 
 DAY, AGE, TYPE, METRO, RESULT = range(5)
-PICK_GROUP_TEXT = 'Подобрать группу'
-CANCEL_TEXT = 'Отменить'
 
 
-def conv_handler():
-    handler = ConversationHandler(
-        entry_points=[MessageHandler(filters.Text([PICK_GROUP_TEXT]), pick_up_start)],
+def conversation_handler():
+    return ConversationHandler(
+        entry_points=[MessageHandler(filters.Text([PICK_GROUP_TEXT]), conversation_start)],
         states={
-            DAY: [MessageHandler(filters.Regex("^(Понедельник|Вторник|Среда|Четверг|Пятница|Суббота|Воскресенье)$"),
-                                 pick_up_day)],
-            AGE: [MessageHandler(filters.Regex("^(Взрослые|Молодежные \(до 25\)|Молодежные \(после 25\))$"),
-                                 pick_up_age)],
-            TYPE: [MessageHandler(filters.Regex("^(Общая|Мужская|Женская|Семейная|Благовестие)$"),
-                                  pick_up_type)],
-            RESULT: [MessageHandler(filters.Text(['Посмотреть результат']), pick_up_result)]
+            DAY: [MessageHandler(
+                filters.Regex("^(Понедельник|Вторник|Среда|Четверг|Пятница|Суббота|Воскресенье)$"),
+                conversation_day
+            )],
+            AGE: [MessageHandler(
+                filters.Regex("^(Взрослые|Молодежные \(до 25\)|Молодежные \(после 25\))$"),
+                conversation_age
+            )],
+            TYPE: [MessageHandler(
+                filters.Regex("^(Общая|Мужская|Женская|Семейная|Благовестие)$"),
+                conversation_type
+            )],
+            RESULT: [MessageHandler(filters.Text(['Посмотреть результат']), conversation_result)]
         },
-        fallbacks=[MessageHandler(filters.Text([CANCEL_TEXT]), pick_up_cancel)]
+        fallbacks=[MessageHandler(filters.Text([RETURN_BUTTON_TEXT]), conversation_cancel)]
     )
-    return handler
 
 
-async def pick_up_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def conversation_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['in_conversation'] = True
-    reply_keyboard = [
-        ['Понедельник', 'Вторник'],
-        ['Среда', 'Четверг', 'Пятница'],
-        ['Суббота', 'Воскресенье'],
-        [CANCEL_TEXT]
-    ]
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text='Выберите день недели, в который вы хотели бы посещать домашнюю группу',
-        reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard,
-            one_time_keyboard=True,
-            input_field_placeholder='Выберите день недели',
-            resize_keyboard=True
-        ),
+        reply_markup=conversation_days_keyboard,
     )
     return DAY
 
 
-async def pick_up_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def conversation_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
     day = update.message.text
     context.user_data['day'] = day
     await update.message.reply_text(
         f'Вы выбрали день недели: {day}\n'
         f'Выберите возраст',
-        reply_markup=ReplyKeyboardMarkup([
-            ['Взрослые'], ['Молодежные (до 25)'], ['Молодежные (после 25)'], [CANCEL_TEXT]
-        ], resize_keyboard=True)
+        reply_markup=conversation_age_keyboard
     )
     return AGE
 
 
-async def pick_up_age(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def conversation_age(update: Update, context: ContextTypes.DEFAULT_TYPE):
     day = context.user_data['day']
     age = update.message.text
     context.user_data['age'] = age
-    keyword = [
-        ['Общая', 'Мужская', 'Женская'], ['Семейная', 'Благовестие'], [CANCEL_TEXT]
-    ]
     await update.message.reply_text(
         f'Вы выбрали день недели: {day}\n'
         f'Вы выбрали возраст: {age}\n\n'
         f'Выберите тип',
-        reply_markup=ReplyKeyboardMarkup(keyword, resize_keyboard=True)
+        reply_markup=conversation_type_keyboard
     )
     return TYPE
 
 
-async def pick_up_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def conversation_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     day = context.user_data['day']
     age = context.user_data['age']
     group_type = update.message.text
@@ -87,13 +77,13 @@ async def pick_up_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f'Вы выбрали возраст: <b>{age}</b>\n'
         f'Вы выбрали тип: <b>{group_type}</b>\n\n'
         f'Нажмите на кнопку внизу, чтобы посмотреть результат',
-        reply_markup=ReplyKeyboardMarkup([['Посмотреть результат']], one_time_keyboard=True, resize_keyboard=True),
+        reply_markup=conversation_result_keyboard,
         parse_mode=ParseMode.HTML
     )
     return RESULT
 
 
-async def pick_up_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def conversation_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
     day = context.user_data['day']
     age = context.user_data['age']
     group_type = context.user_data['type']
@@ -107,20 +97,20 @@ async def pick_up_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
                              f'Возраст: <b>{group.age}</b>\n' \
                              f'Тип: <b>{group.type}</b>\n' \
                              f'Лидер: <b>{group.leader.name}</b>'
+                context.user_data['home_group_leader_id'] = group.leader
+                context.user_data['home_group_info_text'] = home_group
+                context.user_data['home_group_is_youth'] = \
+                    group.age == 'Молодежные (до 25)' or group.age == 'Молодежные (после 25)'
                 await context.bot.send_message(
                     chat_id=update.effective_chat.id,
                     text=home_group,
                     parse_mode=ParseMode.HTML,
-                    disable_web_page_preview=True,
-                    reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton('Присоединиться', callback_data='join_to_group')]
-                    ])
+                    reply_markup=join_to_group_keyboard
                 )
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text='Чтобы искать на другой станции метро, введите ее название или нажмите на кнопку подбора',
-                disable_web_page_preview=True,
-                reply_markup=ReplyKeyboardMarkup([[KeyboardButton(text=PICK_GROUP_TEXT)]], resize_keyboard=True)
+                text='Чтобы искать на другой станции метро, введите ее название или нажмите одну из кнопок',
+                reply_markup=start_keyboard
             )
         else:
             await context.bot.send_message(
@@ -132,19 +122,18 @@ async def pick_up_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
                      'Также вы можете связаться с администратором для подбора ближайшей группы',
                 parse_mode=ParseMode.HTML,
                 disable_web_page_preview=True,
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton('Написать администратору', url='https://t.me/kirillsemiletov')],
-                    [InlineKeyboardButton('Открыть свою группу', callback_data='open_group')]
-                ])
+                reply_markup=search_is_empty_keyboard
             )
     context.user_data['in_conversation'] = False
     return ConversationHandler.END
 
 
-async def pick_up_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def conversation_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['in_conversation'] = False
     await update.message.reply_text(
-        'Чтобы найти домашнюю группу, напишите название станции метро, или нажмите кнопку внизу для подбора',
-        reply_markup=ReplyKeyboardMarkup([[KeyboardButton(text=PICK_GROUP_TEXT)]], resize_keyboard=True)
+        text='Чтобы найти домашнюю группу, напишите '
+             '<b>название станции метро</b>, или нажмите одну из кнопок',
+        reply_markup=start_keyboard,
+        parse_mode=ParseMode.HTML
     )
     return ConversationHandler.END

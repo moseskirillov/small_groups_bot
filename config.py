@@ -1,13 +1,7 @@
-"""
-Конфигурационный модуль
-"""
 import logging
 
 
 def logging_init():
-    """
-    Настройка логирования
-    """
     logging.basicConfig(
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         level=logging.INFO

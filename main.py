@@ -1,41 +1,32 @@
-"""
-Модуль запуска
-"""
 import os
 
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler
+from telegram.ext import ApplicationBuilder, CommandHandler, filters, MessageHandler, CallbackQueryHandler
 
 from config import logging_init
-from conversation import conv_handler
+from conversation import conversation_handler
 from database.db_init import database_init
-from handlers import start, search_group, join_to_group, send_contact_response, error_handler, import_data, open_group
-
-SHEET_ID = os.getenv('WOL_HOME_GROUP_SHEET_ID')
-YOUTH_TABLE_ID = os.getenv('WOL_HOME_GROUP_YOUTH_ID')
-GENERAL_TABLE_ID = os.getenv('WOL_HOME_GROUP_GENERAL_ID')
+from handlers import start, search_group, return_to_start, search_by_button, join_to_group, \
+    send_contact_response, open_group, error_handler
+from keyboards import WRITE_METRO_TEXT
 
 TOKEN = os.getenv('BOT_TOKEN')
 
 
 def handlers_register(bot):
-    """
-    Добавление всех хендлеров
-    """
-    bot.add_handler(conv_handler())
+    bot.add_handler(conversation_handler())
     bot.add_handler(CommandHandler('start', start))
-    bot.add_handler(CommandHandler('import', import_data))
-    bot.add_handler(MessageHandler(filters.Text(['Искать домашнюю группу']), start))
+    bot.add_handler(CallbackQueryHandler(return_to_start, pattern='return_to_start'))
+    bot.add_handler(CallbackQueryHandler(open_group, pattern='open_group'))
+    bot.add_handler(MessageHandler(filters.Text([WRITE_METRO_TEXT]), search_by_button))
     bot.add_handler(CallbackQueryHandler(join_to_group, pattern='join_to_group'))
+    bot.add_handler(MessageHandler(filters.Text(['Вернуться']), return_to_start))
+    bot.add_handler(MessageHandler(filters.CONTACT, send_contact_response))
     bot.add_handler(CallbackQueryHandler(open_group, pattern='open_group'))
     bot.add_handler(MessageHandler(filters.TEXT, search_group))
-    bot.add_handler(MessageHandler(filters.CONTACT, send_contact_response))
     bot.add_error_handler(error_handler)
 
 
 def main():
-    """
-    Старт бота
-    """
     bot = ApplicationBuilder().token(TOKEN).build()
     handlers_register(bot)
     bot.run_polling()

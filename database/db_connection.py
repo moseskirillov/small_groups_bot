@@ -1,6 +1,3 @@
-"""
-Настрока доступа к БД
-"""
 import os
 
 from peewee import PostgresqlDatabase
