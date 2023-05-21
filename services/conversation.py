@@ -3,7 +3,7 @@ from telegram.constants import ParseMode
 from telegram.ext import ConversationHandler, ContextTypes, MessageHandler, filters
 
 from database.db_connection import connect_to_bot
-from keyboards import search_is_empty_keyboard, PICK_GROUP_TEXT, RETURN_BUTTON_TEXT, join_to_group_keyboard, \
+from services.keyboards import search_is_empty_keyboard, PICK_GROUP_TEXT, RETURN_BUTTON_TEXT, join_to_group_keyboard, \
     start_keyboard, conversation_days_keyboard, conversation_age_keyboard, conversation_type_keyboard, \
     conversation_result_keyboard
 from models.group_model import Group

@@ -12,7 +12,7 @@ from telegram.ext import ContextTypes
 
 from data_import import parse_data_from_hub, parse_data_from_google
 from database.db_connection import connect_to_bot
-from keyboards import search_is_empty_keyboard, return_to_start_keyboard, send_contact_keyboard, start_keyboard, \
+from services.keyboards import search_is_empty_keyboard, return_to_start_keyboard, send_contact_keyboard, start_keyboard, \
     join_to_group_keyboard, another_search_keyboard, return_to_start_inline_keyboard
 from models.group_leader_model import GroupLeader
 from models.group_model import Group
@@ -20,7 +20,7 @@ from models.join_request_model import JoinRequest
 from models.region_leader_model import RegionLeader
 from models.regional_group_model import RegionalGroupLeaders
 from models.user_model import User
-from sheets import add_new_join_request
+from services.sheets import add_new_join_request
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
