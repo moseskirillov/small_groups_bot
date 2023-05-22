@@ -1,12 +1,14 @@
+import logging
+
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ConversationHandler, ContextTypes, MessageHandler, filters
 
 from database.db_connection import connect_to_bot
+from models.group_model import Group
 from services.keyboards import search_is_empty_keyboard, PICK_GROUP_TEXT, RETURN_BUTTON_TEXT, join_to_group_keyboard, \
     start_keyboard, conversation_days_keyboard, conversation_age_keyboard, conversation_type_keyboard, \
     conversation_result_keyboard
-from models.group_model import Group
 
 DAY, AGE, TYPE, METRO, RESULT = range(5)
 
@@ -97,7 +99,9 @@ async def conversation_result(update: Update, context: ContextTypes.DEFAULT_TYPE
                              f'Возраст: <b>{group.age}</b>\n' \
                              f'Тип: <b>{group.type}</b>\n' \
                              f'Лидер: <b>{group.leader.name}</b>'
-                context.user_data['home_group_leader_id'] = group.leader
+                logging.info(f'Выбранная группа: {home_group}')
+                logging.info(f'Id лидера группы: {group.leader.id}')
+                context.user_data['home_group_leader_id'] = group.leader.id
                 context.user_data['home_group_info_text'] = home_group
                 context.user_data['home_group_is_youth'] = \
                     group.age == 'Молодежные (до 25)' or group.age == 'Молодежные (после 25)'

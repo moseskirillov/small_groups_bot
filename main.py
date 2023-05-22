@@ -3,8 +3,8 @@ import os
 from telegram.ext import ApplicationBuilder, CommandHandler, filters, MessageHandler, CallbackQueryHandler
 
 from config import logging_init
-from services.conversation import conversation_handler
 from database.db_init import database_init
+from services.conversation import conversation_handler
 from services.handlers import start, search_group, return_to_start, search_by_button, join_to_group, \
     send_contact_response, open_group, error_handler
 from services.keyboards import WRITE_METRO_TEXT

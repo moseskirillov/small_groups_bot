@@ -10,17 +10,18 @@ from telegram import Update, ReplyKeyboardRemove
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
-from data_import import parse_data_from_hub, parse_data_from_google
 from database.db_connection import connect_to_bot
-from services.keyboards import search_is_empty_keyboard, return_to_start_keyboard, send_contact_keyboard, start_keyboard, \
-    join_to_group_keyboard, another_search_keyboard, return_to_start_inline_keyboard
 from models.group_leader_model import GroupLeader
 from models.group_model import Group
 from models.join_request_model import JoinRequest
 from models.region_leader_model import RegionLeader
 from models.regional_group_model import RegionalGroupLeaders
 from models.user_model import User
-from services.sheets import add_new_join_request
+from services.data_import import parse_data_from_hub, parse_data_from_google
+from services.keyboards import search_is_empty_keyboard, return_to_start_keyboard, send_contact_keyboard, \
+    start_keyboard, \
+    join_to_group_keyboard, another_search_keyboard, return_to_start_inline_keyboard
+from services.sheets_post import add_new_join_request
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -75,7 +76,9 @@ async def search_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
                          f'Возраст: <b>{group.age}</b>\n' \
                          f'Тип: <b>{group.type}</b>\n' \
                          f'Лидер: <b>{group.leader.name}</b>'
-            context.user_data['home_group_leader_id'] = group.leader
+            logging.info(f'Выбранная группа: {home_group}')
+            logging.info(f'Id лидера группы: {group.leader.id}')
+            context.user_data['home_group_leader_id'] = group.leader.id
             context.user_data['home_group_info_text'] = home_group
             context.user_data['home_group_is_youth'] = \
                 group.age == 'Молодежные (до 25)' or group.age == 'Молодежные (после 25)'
