@@ -159,69 +159,77 @@ async def send_contact_response(update: Update, context: ContextTypes.DEFAULT_TY
         )
         context.chat_data.clear()
     else:
-        group_leader_id = context.user_data['home_group_leader_id']
-        group_info_text = context.user_data['home_group_info_text']
-
-        with connect_to_bot.atomic():
-            user, _ = User.get_or_create(
-                user_id=update.effective_message.from_user.id,
-                defaults={
-                    'first_name': update.effective_chat.first_name,
-                    'last_name': update.effective_chat.last_name,
-                    'telegram_login': update.effective_chat.username,
-                }
+        group_leader_id = context.user_data.get('home_group_leader_id') or None
+        if group_leader_id is None:
+            await update.message.reply_text(
+                parse_mode=ParseMode.HTML,
+                text='Чтобы найти домашнюю группу, напишите '
+                     '<b>название станции метро</b>, или нажмите одну из кнопок',
+                reply_markup=start_keyboard
             )
-            group_leader = GroupLeader.get(id=group_leader_id)
-            regional_leader = (
-                RegionLeader
-                .select()
-                .join(RegionalGroupLeaders)
-                .join(GroupLeader)
-                .where(GroupLeader.id == group_leader_id)
-                .get()
+        else:
+            group_info_text = context.user_data['home_group_info_text']
+
+            with connect_to_bot.atomic():
+                user, _ = User.get_or_create(
+                    user_id=update.effective_message.from_user.id,
+                    defaults={
+                        'first_name': update.effective_chat.first_name,
+                        'last_name': update.effective_chat.last_name,
+                        'telegram_login': update.effective_chat.username,
+                    }
+                )
+                group_leader = GroupLeader.get(id=group_leader_id)
+                regional_leader = (
+                    RegionLeader
+                    .select()
+                    .join(RegionalGroupLeaders)
+                    .join(GroupLeader)
+                    .where(GroupLeader.id == group_leader_id)
+                    .get()
+                )
+                JoinRequest.create(leader=group_leader, user=user)
+
+            await update.message.reply_text(
+                text='Спасибо! Лидер домашней группы свяжется с Вами',
+                reply_markup=return_to_start_keyboard
             )
-            JoinRequest.create(leader=group_leader, user=user)
 
-        await update.message.reply_text(
-            text='Спасибо! Лидер домашней группы свяжется с Вами',
-            reply_markup=return_to_start_keyboard
-        )
+            group_leader_chat_id = group_leader.telegram_id or os.getenv('ADMIN_ID')
+            await context.bot.send_message(
+                chat_id=group_leader_chat_id,
+                text=f'{update.effective_chat.first_name} '
+                     f'{update.effective_chat.last_name} '
+                     f'хочет присоединиться к Вашей домашней группе. '
+                     f'Вот его/ее контакт:',
+            )
+            await context.bot.send_contact(
+                chat_id=group_leader_chat_id,
+                contact=update.message.contact
+            )
 
-        group_leader_chat_id = group_leader.telegram_id or os.getenv('ADMIN_ID')
-        await context.bot.send_message(
-            chat_id=group_leader_chat_id,
-            text=f'{update.effective_chat.first_name} '
-                 f'{update.effective_chat.last_name} '
-                 f'хочет присоединиться к Вашей домашней группе. '
-                 f'Вот его/ее контакт:',
-        )
-        await context.bot.send_contact(
-            chat_id=group_leader_chat_id,
-            contact=update.message.contact
-        )
-
-        regional_leader_chat_id = regional_leader.telegram_id or os.getenv('ADMIN_ID')
-        await context.bot.send_message(
-            chat_id=regional_leader_chat_id,
-            text=f'{update.effective_chat.first_name} '
-                 f'{update.effective_chat.last_name} '
-                 f'хочет присоединиться к домашней группе Вашего региона\n\n'
-                 f'Вот информация о группе и контакт человека: \n\n'
-                 f'{group_info_text}',
-            parse_mode=ParseMode.HTML
-        )
-        await context.bot.send_contact(
-            chat_id=regional_leader_chat_id,
-            contact=update.message.contact
-        )
-        add_new_join_request(
-            user.first_name,
-            user.last_name,
-            user.telegram_login,
-            group_leader.name,
-            regional_leader.name,
-            context.user_data['home_group_is_youth']
-        )
+            regional_leader_chat_id = regional_leader.telegram_id or os.getenv('ADMIN_ID')
+            await context.bot.send_message(
+                chat_id=regional_leader_chat_id,
+                text=f'{update.effective_chat.first_name} '
+                     f'{update.effective_chat.last_name} '
+                     f'хочет присоединиться к домашней группе Вашего региона\n\n'
+                     f'Вот информация о группе и контакт человека: \n\n'
+                     f'{group_info_text}',
+                parse_mode=ParseMode.HTML
+            )
+            await context.bot.send_contact(
+                chat_id=regional_leader_chat_id,
+                contact=update.message.contact
+            )
+            add_new_join_request(
+                user.first_name,
+                user.last_name,
+                user.telegram_login,
+                group_leader.name,
+                regional_leader.name,
+                context.user_data['home_group_is_youth']
+            )
 
 
 async def open_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
