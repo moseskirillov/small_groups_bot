@@ -23,12 +23,14 @@ from services.keyboards import search_is_empty_keyboard, return_to_start_keyboar
     join_to_group_keyboard, another_search_keyboard, return_to_start_inline_keyboard
 from services.sheets_post import add_new_join_request
 
+MESSAGE_SENT_TEXT = 'Сообщение отправлено'
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['in_conversation'] = False
 
     with connect_to_bot.atomic():
-        User.get_or_create(
+        user, _ = User.get_or_create(
             user_id=update.effective_message.from_user.id,
             defaults={
                 'first_name': update.effective_chat.first_name,
@@ -36,14 +38,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'telegram_login': update.effective_chat.username,
             }
         )
+        logging.info(f'Определен пользователь: {user.first_name} {user.last_name}')
 
         group_leader = GroupLeader.get_or_none(telegram=update.effective_chat.username)
         if group_leader is not None:
+            logging.info(f'Определен лидер ДГ: {group_leader.name}')
             group_leader.telegram_id = update.effective_message.from_user.id
             group_leader.save()
 
         regional_leader = RegionLeader.get_or_none(telegram=update.effective_chat.username)
         if regional_leader is not None:
+            logging.info(f'Определен региональный лидер: {regional_leader.name}')
             regional_leader.telegram_id = update.effective_message.from_user.id
             regional_leader.save()
 
@@ -54,10 +59,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
              f'<b>название станции метро</b>, или нажмите одну из кнопок',
         reply_markup=start_keyboard
     )
+    logging.info('Отправлено приветственное сообщение')
 
 
 async def search_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get('in_conversation'):
+        logging.info('В контексте conversation, отменяем поиск')
         return
 
     with connect_to_bot.atomic():
@@ -69,6 +76,7 @@ async def search_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     if found_groups:
+        logging.info('Найдены группы')
         for group in found_groups:
             time_str = group.time.strftime('%H:%M')
             home_group = f'Метро: <b>{group.metro}</b>\n' \
@@ -77,24 +85,28 @@ async def search_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
                          f'Тип: <b>{group.type}</b>\n' \
                          f'Лидер: <b>{group.leader.name}</b>'
             logging.info(f'Выбранная группа: {home_group}')
-            logging.info(f'Id лидера группы: {group.leader.id}')
+            logging.info(f'Лидер группы: {group.leader.name}')
             context.user_data['home_group_leader_id'] = group.leader.id
             context.user_data['home_group_info_text'] = home_group
             context.user_data['home_group_is_youth'] = \
                 group.age == 'Молодежные (до 25)' or group.age == 'Молодежные (после 25)'
+            logging.info('Обновили контекст')
             await update.message.reply_text(
                 text=home_group,
                 parse_mode=ParseMode.HTML,
                 disable_web_page_preview=True,
                 reply_markup=join_to_group_keyboard
             )
+            logging.info('Отправили сообщение с группой')
 
         await update.message.reply_text(
             text='Чтобы искать на другой станции метро, введите ее название или нажмите на одну из кнопок',
             disable_web_page_preview=True,
             reply_markup=another_search_keyboard
         )
+        logging.info('Отправили сообщение с предложением поиска другой группы')
     else:
+        logging.info(f'Группы по запросу {update.message.text} не найдены')
         await update.message.reply_text(
             text='К сожалению, на этой станции пока нет домашних групп.\n'
                  'Можете ввести другую станцию метро, '
@@ -105,17 +117,21 @@ async def search_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
             disable_web_page_preview=True,
             reply_markup=search_is_empty_keyboard
         )
+        logging.info('Отправлено сообщение о том что группы не найдены')
 
 
 async def search_by_button(update: Update, _):
+    logging.info('Сработал handler кнопки поиска по названию метро')
     await update.message.reply_text(
         text='Чтобы найти домашнюю группу, напишите <b>название станции метро</b>',
         parse_mode=ParseMode.HTML,
         reply_markup=return_to_start_inline_keyboard
     )
+    logging.info(MESSAGE_SENT_TEXT)
 
 
 async def join_to_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logging.info('Обработка запроса на присоединение к ДГ')
     await update.callback_query.answer()
 
     await context.bot.send_message(
@@ -123,12 +139,16 @@ async def join_to_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text='Нажмите на кнопку чтобы отправить Ваш контакт и лидер домашней группы свяжется с Вами',
         reply_markup=send_contact_keyboard
     )
+    logging.info('Отправили сообщение с предложением отправить контакт')
 
 
 async def return_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logging.info('Сработала кнопка возвращения к старту')
     if update.callback_query:
+        logging.info('Сработал callback')
         await update.callback_query.answer()
 
+    logging.info('Отправляем сообщение с предложением поиска ДГ')
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         parse_mode=ParseMode.HTML,
@@ -136,6 +156,7 @@ async def return_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
              '<b>название станции метро</b>, или нажмите одну из кнопок',
         reply_markup=start_keyboard
     )
+    logging.info(MESSAGE_SENT_TEXT)
 
 
 async def send_contact_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -143,33 +164,42 @@ async def send_contact_response(update: Update, context: ContextTypes.DEFAULT_TY
     ministry_leader_chat_id = os.getenv('MINISTRY_LEADER')
 
     if is_open_group:
+        logging.info('Получен запрос на открытие ДГ')
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text='Спасибо! Лидер служения свяжется с Вами',
             disable_web_page_preview=True,
             reply_markup=return_to_start_keyboard
         )
+        logging.info('Отправлено сообщение с информацией об обратной связи')
         await context.bot.send_message(
             chat_id=ministry_leader_chat_id,
             text='Новый человек хочет открыть домашнюю группу. Вот его контакт:\n',
         )
+        logging.info('Отправляем сообщение с информацией об открытии ДГ лидеру')
         await context.bot.send_contact(
             chat_id=ministry_leader_chat_id,
             contact=update.message.contact
         )
+        logging.info(MESSAGE_SENT_TEXT)
         context.chat_data.clear()
+        logging.info('Контекст очищен')
     else:
+        logging.info('Получен запрос на присоединение к ДГ')
         group_leader_id = context.user_data.get('home_group_leader_id') or None
         if group_leader_id is None:
+            logging.info('Не получен лидер группы')
             await update.message.reply_text(
                 parse_mode=ParseMode.HTML,
                 text='Чтобы найти домашнюю группу, напишите '
                      '<b>название станции метро</b>, или нажмите одну из кнопок',
                 reply_markup=start_keyboard
             )
+            logging.info('Отправили сообщение со стартовым текстом')
         else:
+            logging.info('Лидер ДГ получен')
             group_info_text = context.user_data['home_group_info_text']
-
+            logging.info(f'Информация о ДГ: {group_info_text}')
             with connect_to_bot.atomic():
                 user, _ = User.get_or_create(
                     user_id=update.effective_message.from_user.id,
@@ -179,7 +209,9 @@ async def send_contact_response(update: Update, context: ContextTypes.DEFAULT_TY
                         'telegram_login': update.effective_chat.username,
                     }
                 )
+                logging.info(f'Получен пользователь: {user.first_name} {user.last_name}')
                 group_leader = GroupLeader.get(id=group_leader_id)
+                logging.info(f'Определен лидер ДГ: {group_leader.name}')
                 regional_leader = (
                     RegionLeader
                     .select()
@@ -188,14 +220,18 @@ async def send_contact_response(update: Update, context: ContextTypes.DEFAULT_TY
                     .where(GroupLeader.id == group_leader_id)
                     .get()
                 )
+                logging.info(f'Определен региональный лидер : {regional_leader.name}')
                 JoinRequest.create(leader=group_leader, user=user)
+                logging.info('Создан запрос в базе')
 
             await update.message.reply_text(
                 text='Спасибо! Лидер домашней группы свяжется с Вами',
                 reply_markup=return_to_start_keyboard
             )
+            logging.info('Отправлено финальное сообщение об обратной связи')
 
             group_leader_chat_id = group_leader.telegram_id or os.getenv('ADMIN_ID')
+            logging.info(f'Получен id чата лидера или админа: {group_leader_chat_id}')
             await context.bot.send_message(
                 chat_id=group_leader_chat_id,
                 text=f'{update.effective_chat.first_name} '
@@ -203,12 +239,16 @@ async def send_contact_response(update: Update, context: ContextTypes.DEFAULT_TY
                      f'хочет присоединиться к Вашей домашней группе. '
                      f'Вот его/ее контакт:',
             )
+            logging.info('Отправлено сообщение лидеру ДГ о том что к нему хочет присоединится новый человек '
+                         f'{update.effective_chat.first_name} {update.effective_chat.last_name}')
             await context.bot.send_contact(
                 chat_id=group_leader_chat_id,
                 contact=update.message.contact
             )
+            logging.info('Отправлен контакт')
 
             regional_leader_chat_id = regional_leader.telegram_id or os.getenv('ADMIN_ID')
+            logging.info(f'Получен id чата регионального лидера или админа: {regional_leader_chat_id}')
             await context.bot.send_message(
                 chat_id=regional_leader_chat_id,
                 text=f'{update.effective_chat.first_name} '
@@ -218,10 +258,15 @@ async def send_contact_response(update: Update, context: ContextTypes.DEFAULT_TY
                      f'{group_info_text}',
                 parse_mode=ParseMode.HTML
             )
+            logging.info(
+                f'Отправлено сообщение региональному лидеру о том что к ДГ лидера {group_leader.name} '
+                f'хочет присоединиться новый человек '
+                f'{update.effective_chat.first_name} {update.effective_chat.last_name}')
             await context.bot.send_contact(
                 chat_id=regional_leader_chat_id,
                 contact=update.message.contact
             )
+            logging.info('Отправлен контакт')
             add_new_join_request(
                 user.first_name,
                 user.last_name,
@@ -230,9 +275,11 @@ async def send_contact_response(update: Update, context: ContextTypes.DEFAULT_TY
                 regional_leader.name,
                 context.user_data['home_group_is_youth']
             )
+            logging.info('Добавлена запись в таблицу')
 
 
 async def open_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logging.info('Сработал handler открытия группы')
     context.chat_data['open_group'] = True
     await update.callback_query.answer()
     await context.bot.send_message(
@@ -240,6 +287,7 @@ async def open_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text='Нажмите на кнопку чтобы отправить Ваш контакт и лидер служения домашних групп свяжется с Вами',
         reply_markup=send_contact_keyboard
     )
+    logging.info('Отправлен запрос на отправку контакта')
 
 
 async def import_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
