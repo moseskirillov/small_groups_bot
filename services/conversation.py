@@ -26,7 +26,7 @@ def conversation_handler():
                 conversation_age
             )],
             TYPE: [MessageHandler(
-                filters.Regex("^(Общая|Мужская|Женская|Семейная|Благовестие)$"),
+                filters.Regex("^(Общая|Мужская|Женская|Семейная|Благовестие|Любая)$"),
                 conversation_type
             )],
             RESULT: [MessageHandler(filters.Text(['Посмотреть результат']), conversation_result)]
@@ -98,7 +98,19 @@ async def conversation_result(update: Update, context: ContextTypes.DEFAULT_TYPE
     age = context.user_data['age']
     group_type = context.user_data['type']
     with connect_to_bot.atomic():
-        found_groups = Group.select().where((Group.day == day) & (Group.age == age) & (Group.type == group_type))
+        if group_type == 'Любая':
+            found_groups = Group.select() \
+                .where(
+                (Group.day == day) &
+                (Group.age == age)
+            )
+        else:
+            found_groups = Group.select() \
+                .where(
+                (Group.day == day) &
+                (Group.age == age) &
+                (Group.type == group_type)
+            )
         if found_groups:
             logging.info('Найдены группы')
             for group in found_groups:

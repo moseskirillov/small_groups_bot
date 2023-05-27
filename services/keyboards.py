@@ -9,7 +9,7 @@ OPEN_NEW_GROUP_TEXT = 'Открыть свою группу'
 SEND_CONTACT_TEXT = 'Отправить контакт'
 
 search_is_empty_keyboard = InlineKeyboardMarkup([
-    [InlineKeyboardButton(WRITE_TO_ADMIN_TEXT, url='https://t.me/kirillsemiletov')],
+    [InlineKeyboardButton(WRITE_TO_ADMIN_TEXT, url='https://t.me/Pelna')],
     [InlineKeyboardButton(OPEN_NEW_GROUP_TEXT, callback_data='open_group')],
     [InlineKeyboardButton(RETURN_BUTTON_TEXT, callback_data='return_to_start')]
 ])
@@ -55,7 +55,8 @@ conversation_age_keyboard = ReplyKeyboardMarkup([
 
 conversation_type_keyboard = ReplyKeyboardMarkup([
     [KeyboardButton(text='Общая'), KeyboardButton(text='Мужская'), KeyboardButton(text='Женская')],
-    [KeyboardButton(text='Семейная'), KeyboardButton(text='Благовестие')], [KeyboardButton(text=RETURN_BUTTON_TEXT)]
+    [KeyboardButton(text='Семейная'), KeyboardButton(text='Благовестие'), KeyboardButton(text='Любая')],
+    [KeyboardButton(text=RETURN_BUTTON_TEXT)]
 ], resize_keyboard=True)
 
 conversation_result_keyboard = ReplyKeyboardMarkup([
