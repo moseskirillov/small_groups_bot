@@ -107,6 +107,7 @@ async def conversation_result(update: Update, context: ContextTypes.DEFAULT_TYPE
         else:
             found_groups = Group.select() \
                 .where(
+                Group.is_open &
                 (Group.day == day) &
                 (Group.age == age) &
                 (Group.type == group_type)

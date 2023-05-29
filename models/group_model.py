@@ -1,4 +1,4 @@
-from peewee import Model, PrimaryKeyField, CharField, TimeField, ForeignKeyField
+from peewee import Model, PrimaryKeyField, CharField, TimeField, ForeignKeyField, BooleanField
 
 from database.db_connection import connect_to_bot
 from models.group_leader_model import GroupLeader
@@ -14,6 +14,7 @@ class Group(Model):
     time = TimeField()
     age = CharField(max_length=50)
     type = CharField(max_length=50)
+    is_open = BooleanField(default=True)
     leader = ForeignKeyField(GroupLeader, backref='leader')
 
     class Meta:

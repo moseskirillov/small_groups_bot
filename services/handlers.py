@@ -17,7 +17,7 @@ from models.join_request_model import JoinRequest
 from models.region_leader_model import RegionLeader
 from models.regional_group_model import RegionalGroupLeaders
 from models.user_model import User
-from services.data_import import parse_data_from_hub, parse_data_from_google
+from services.data_import import parse_data_from_hub, parse_data_from_google, check_open_groups
 from services.keyboards import search_is_empty_keyboard, return_to_start_keyboard, send_contact_keyboard, \
     start_keyboard, \
     join_to_group_keyboard, another_search_keyboard, return_to_start_inline_keyboard
@@ -71,7 +71,7 @@ async def search_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
         found_groups = (
             Group.select()
             .join(GroupLeader)
-            .where(fn.Lower(Group.metro).contains(update.message.text))
+            .where(Group.is_open & fn.Lower(Group.metro).contains(update.message.text))
             .prefetch(GroupLeader)
         )
 
@@ -298,6 +298,16 @@ async def import_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_data_from_google(os.getenv('WOL_HOME_GROUP_GENERAL_ID'))
             parse_data_from_google(os.getenv('WOL_HOME_GROUP_YOUTH_ID'))
             await context.bot.send_message(chat_id=update.effective_chat.id, text='Импорт успешно завершен')
+        else:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text='У тебя нет прав на эту команду')
+
+
+async def check_groups(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    with connect_to_bot:
+        user = User.get_or_none(user_id=update.effective_chat.id)
+        if user is not None and user.is_admin:
+            check_open_groups()
+            await context.bot.send_message(chat_id=update.effective_chat.id, text='Проверка завершена')
         else:
             await context.bot.send_message(chat_id=update.effective_chat.id, text='У тебя нет прав на эту команду')
 

@@ -6,7 +6,7 @@ from config import logging_init
 from database.db_init import database_init
 from services.conversation import conversation_handler
 from services.handlers import start, search_group, return_to_start, search_by_button, join_to_group, \
-    send_contact_response, open_group, error_handler, import_data
+    send_contact_response, open_group, error_handler, import_data, check_groups
 from services.keyboards import WRITE_METRO_TEXT
 
 TOKEN = os.getenv('BOT_TOKEN')
@@ -23,6 +23,7 @@ def handlers_register(bot):
     bot.add_handler(MessageHandler(filters.CONTACT, send_contact_response))
     bot.add_handler(CallbackQueryHandler(open_group, pattern='open_group'))
     bot.add_handler(CommandHandler('import', import_data))
+    bot.add_handler(CommandHandler('check', check_groups))
     bot.add_handler(MessageHandler(filters.TEXT, search_group))
     bot.add_error_handler(error_handler)
 

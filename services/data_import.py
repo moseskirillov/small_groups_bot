@@ -18,9 +18,9 @@ URL = 'https://docs.google.com/spreadsheets/d/{}/export?format=csv&gid={}'
 def parse_data_from_hub():
     with connect_to_wolrus_hub, connect_to_bot.atomic():
         with connect_to_wolrus_hub.cursor() as cursor:
-            cursor.execute('select subway, weekday, time_of_hg, type_age, type_of_hg, name_leader '
-                           'from master_data_history_view '
-                           'where status_of_hg = \'открыта\'')
+            cursor.execute('SELECT subway, weekday, time_of_hg, type_age, type_of_hg, name_leader '
+                           'FROM master_data_history_view '
+                           'WHERE status_of_hg = \'открыта\'')
             results = cursor.fetchall()
             for result in results:
                 group_leader = GroupLeader.get_or_none(GroupLeader.name == result[5])
@@ -33,9 +33,31 @@ def parse_data_from_hub():
                     time=result[2],
                     age=result[3],
                     type=result[4],
+                    is_open=True,
                     leader=group_leader
                 )
                 LeaderGroups.get_or_create(leader=group_leader, group=group)
+
+
+def check_open_groups():
+    with connect_to_wolrus_hub, connect_to_bot.atomic():
+        with connect_to_wolrus_hub.cursor() as cursor:
+            groups = Group.select().join(LeaderGroups).join(GroupLeader)
+            for group in groups:
+                cursor.execute(f'SELECT status_of_hg '
+                               f'FROM master_data_history_view '
+                               f'WHERE name_leader = \'{group.leader.name}\' '
+                               f'AND weekday = \'{group.day}\' '
+                               f'AND time_of_hg = \'{group.time}\' '
+                               f'AND subway = \'{group.metro}\' '
+                               f'AND type_age = \'{group.age}\' '
+                               f'AND type_of_hg = \'{group.type}\'')
+                result = cursor.fetchone()
+                if result:
+                    group_status = result[0]
+                    if group_status is None or group_status != 'открыта':
+                        group.is_open = False
+                        group.save()
 
 
 def parse_data_from_google(table_id):
