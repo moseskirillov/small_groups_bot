@@ -78,21 +78,9 @@ async def search_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if found_groups:
         logging.info('Найдены группы')
         for group in found_groups:
-            time_str = group.time.strftime('%H:%M')
-            home_group = f'Метро: <b>{group.metro}</b>\n' \
-                         f'День: <b>{group.day}</b>\nВремя: <b>{time_str}</b>\n' \
-                         f'Возраст: <b>{group.age}</b>\n' \
-                         f'Тип: <b>{group.type}</b>\n' \
-                         f'Лидер: <b>{group.leader.name}</b>'
-            logging.info(f'Выбранная группа: {home_group}')
-            logging.info(f'Лидер группы: {group.leader.name}')
-            context.user_data['home_group_leader_id'] = group.leader.id
-            context.user_data['home_group_info_text'] = home_group
-            context.user_data['home_group_is_youth'] = \
-                group.age == 'Молодежные (до 25)' or group.age == 'Молодежные (после 25)'
-            logging.info('Обновили контекст')
+            group_text = groups_process(group, context)
             await update.message.reply_text(
-                text=home_group,
+                text=group_text,
                 parse_mode=ParseMode.HTML,
                 disable_web_page_preview=True,
                 reply_markup=join_to_group_keyboard
@@ -239,7 +227,7 @@ async def send_contact_response(update: Update, context: ContextTypes.DEFAULT_TY
                      f'хочет присоединиться к Вашей домашней группе. '
                      f'Вот его/ее контакт:',
             )
-            logging.info('Отправлено сообщение лидеру ДГ о том что к нему хочет присоединится новый человек '
+            logging.info('Отправлено сообщение лидеру ДГ о том что к нему хочет присоединиться новый человек '
                          f'{update.effective_chat.first_name} {update.effective_chat.last_name}')
             await context.bot.send_contact(
                 chat_id=group_leader_chat_id,
@@ -339,3 +327,20 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
             chat_id=update.effective_chat.id, text='Произошла ошибка при работе бота. Пожалуйста, попробуйте позже',
             reply_markup=ReplyKeyboardRemove()
         )
+
+
+def groups_process(group, context):
+    time_str = group.time.strftime('%H:%M')
+    home_group = f'Метро: <b>{group.metro}</b>\n' \
+                 f'День: <b>{group.day}</b>\nВремя: <b>{time_str}</b>\n' \
+                 f'Возраст: <b>{group.age}</b>\n' \
+                 f'Тип: <b>{group.type}</b>\n' \
+                 f'Лидер: <b>{group.leader.name}</b>'
+    logging.info(f'Выбранная группа: {home_group}')
+    logging.info(f'Лидер группы: {group.leader.name}')
+    context.user_data['home_group_leader_id'] = group.leader.id
+    context.user_data['home_group_info_text'] = home_group
+    context.user_data['home_group_is_youth'] = \
+        group.age == 'Молодежные (до 25)' or group.age == 'Молодежные (после 25)'
+    logging.info('Обновили контекст')
+    return home_group

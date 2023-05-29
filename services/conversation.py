@@ -6,6 +6,7 @@ from telegram.ext import ConversationHandler, ContextTypes, MessageHandler, filt
 
 from database.db_connection import connect_to_bot
 from models.group_model import Group
+from services.handlers import groups_process
 from services.keyboards import search_is_empty_keyboard, PICK_GROUP_TEXT, RETURN_BUTTON_TEXT, join_to_group_keyboard, \
     start_keyboard, conversation_days_keyboard, conversation_age_keyboard, conversation_type_keyboard, \
     conversation_result_keyboard
@@ -115,22 +116,10 @@ async def conversation_result(update: Update, context: ContextTypes.DEFAULT_TYPE
         if found_groups:
             logging.info('Найдены группы')
             for group in found_groups:
-                time_str = group.time.strftime('%H:%M')
-                home_group = f'Метро: <b>{group.metro}</b>\n' \
-                             f'День: <b>{group.day}</b>\nВремя: <b>{time_str}</b>\n' \
-                             f'Возраст: <b>{group.age}</b>\n' \
-                             f'Тип: <b>{group.type}</b>\n' \
-                             f'Лидер: <b>{group.leader.name}</b>'
-                logging.info(f'Выбранная группа: {home_group}')
-                logging.info(f'Лидера группы: {group.leader.name}')
-                context.user_data['home_group_leader_id'] = group.leader.id
-                context.user_data['home_group_info_text'] = home_group
-                context.user_data['home_group_is_youth'] = \
-                    group.age == 'Молодежные (до 25)' or group.age == 'Молодежные (после 25)'
-                logging.info('Обновили контекст')
+                group_text = groups_process(group, context)
                 await context.bot.send_message(
                     chat_id=update.effective_chat.id,
-                    text=home_group,
+                    text=group_text,
                     parse_mode=ParseMode.HTML,
                     reply_markup=join_to_group_keyboard
                 )
