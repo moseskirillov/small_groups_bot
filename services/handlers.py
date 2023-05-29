@@ -206,11 +206,14 @@ async def send_contact_response(update: Update, context: ContextTypes.DEFAULT_TY
                     .join(RegionalGroupLeaders)
                     .join(GroupLeader)
                     .where(GroupLeader.id == group_leader_id)
-                    .get()
+                    .get_or_none()
                 )
-                logging.info(f'Определен региональный лидер : {regional_leader.name}')
-                JoinRequest.create(leader=group_leader, user=user)
-                logging.info('Создан запрос в базе')
+                if regional_leader is not None:
+                    logging.info(f'Определен региональный лидер : {regional_leader.name}')
+                    JoinRequest.create(leader=group_leader, user=user)
+                    logging.info('Создан запрос в базе')
+                else:
+                    logging.info('Для запроса не найден региональный лидер')
 
             await update.message.reply_text(
                 text='Спасибо! Лидер домашней группы свяжется с Вами',
@@ -235,7 +238,9 @@ async def send_contact_response(update: Update, context: ContextTypes.DEFAULT_TY
             )
             logging.info('Отправлен контакт')
 
-            regional_leader_chat_id = regional_leader.telegram_id or os.getenv('ADMIN_ID')
+            regional_leader_chat_id = regional_leader.telegram_id \
+                if regional_leader is not None and regional_leader.telegram_id is not None \
+                else os.getenv('ADMIN_ID')
             logging.info(f'Получен id чата регионального лидера или админа: {regional_leader_chat_id}')
             await context.bot.send_message(
                 chat_id=regional_leader_chat_id,
@@ -260,7 +265,9 @@ async def send_contact_response(update: Update, context: ContextTypes.DEFAULT_TY
                 user.last_name,
                 user.telegram_login,
                 group_leader.name,
-                regional_leader.name,
+                regional_leader.name
+                if regional_leader is not None and regional_leader.name is not None
+                else 'Имя не определено',
                 context.user_data['home_group_is_youth']
             )
             logging.info('Добавлена запись в таблицу')
