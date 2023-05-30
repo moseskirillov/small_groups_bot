@@ -31,7 +31,12 @@ def handlers_register(bot):
 def main():
     bot = ApplicationBuilder().token(TOKEN).build()
     handlers_register(bot)
-    bot.run_polling()
+    bot.run_webhook(
+        listen='0.0.0.0',
+        port=5000,
+        url_path='smallgroups',
+        webhook_url='https://1493881-cr74590.tw1.ru/smallgroups',
+    )
 
 
 if __name__ == '__main__':
