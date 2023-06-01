@@ -16,7 +16,7 @@ URL = 'https://docs.google.com/spreadsheets/d/{}/export?format=csv&gid={}'
 
 
 def parse_data_from_hub():
-    with connect_to_wolrus_hub, connect_to_bot.atomic():
+    with connect_to_wolrus_hub:
         with connect_to_wolrus_hub.cursor() as cursor:
             cursor.execute('SELECT subway, weekday, time_of_hg, type_age, type_of_hg, name_leader '
                            'FROM master_data_history_view '
@@ -40,7 +40,7 @@ def parse_data_from_hub():
 
 
 def check_open_groups():
-    with connect_to_wolrus_hub, connect_to_bot.atomic():
+    with connect_to_wolrus_hub:
         with connect_to_wolrus_hub.cursor() as cursor:
             groups = Group.select().join(LeaderGroups).join(GroupLeader)
             for group in groups:

@@ -286,7 +286,7 @@ async def open_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def import_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    with connect_to_bot:
+    with connect_to_bot.atomic():
         user = User.get_or_none(user_id=update.effective_chat.id)
         if user is not None and user.is_admin:
             parse_data_from_hub()
@@ -298,7 +298,7 @@ async def import_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def check_groups(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    with connect_to_bot:
+    with connect_to_bot.atomic():
         user = User.get_or_none(user_id=update.effective_chat.id)
         if user is not None and user.is_admin:
             check_open_groups()
