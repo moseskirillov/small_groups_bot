@@ -78,7 +78,7 @@ async def search_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if found_groups:
         logging.info('Найдены группы')
         for group in found_groups:
-            group_text = groups_process(group, context)
+            group_text = groups_process(group)
             await update.message.reply_text(
                 text=group_text,
                 parse_mode=ParseMode.HTML,
@@ -121,6 +121,16 @@ async def search_by_button(update: Update, _):
 async def join_to_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logging.info('Обработка запроса на присоединение к ДГ')
     await update.callback_query.answer()
+    elements = update.effective_message.text.split('\n')
+    group_info = {}
+    for element in elements:
+        key, value = element.split(': ', 1)
+        key = key.strip()
+        group_info[key] = value.strip()
+    context.user_data['home_group_leader_name'] = group_info['Лидер']
+    context.user_data['home_group_info_text'] = update.effective_message.text
+    context.user_data['home_group_is_youth'] = \
+        group_info['Возраст'] == 'Молодежные (до 25)' or group_info['Возраст'] == 'Молодежные (после 25)'
 
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
@@ -174,8 +184,8 @@ async def send_contact_response(update: Update, context: ContextTypes.DEFAULT_TY
         logging.info('Контекст очищен')
     else:
         logging.info('Получен запрос на присоединение к ДГ')
-        group_leader_id = context.user_data.get('home_group_leader_id') or None
-        if group_leader_id is None:
+        group_leader = context.user_data.get('home_group_leader_name') or None
+        if group_leader is None:
             logging.info('Не получен лидер группы')
             await update.message.reply_text(
                 parse_mode=ParseMode.HTML,
@@ -198,14 +208,14 @@ async def send_contact_response(update: Update, context: ContextTypes.DEFAULT_TY
                     }
                 )
                 logging.info(f'Получен пользователь: {user.first_name} {user.last_name}')
-                group_leader = GroupLeader.get(id=group_leader_id)
+                group_leader = GroupLeader.get(name=group_leader)
                 logging.info(f'Определен лидер ДГ: {group_leader.name}')
                 regional_leader = (
                     RegionLeader
                     .select()
                     .join(RegionalGroupLeaders)
                     .join(GroupLeader)
-                    .where(GroupLeader.id == group_leader_id)
+                    .where(GroupLeader == group_leader)
                     .get_or_none()
                 )
                 if regional_leader is not None:
@@ -220,46 +230,66 @@ async def send_contact_response(update: Update, context: ContextTypes.DEFAULT_TY
                 reply_markup=return_to_start_keyboard
             )
             logging.info('Отправлено финальное сообщение об обратной связи')
+            if context.user_data.get('home_group_is_youth'):
+                logging.info('Запрос на молодежную ДГ, пересылаем на Яну')
+                await context.bot.send_message(
+                    chat_id=305061142,
+                    text=f'{update.effective_chat.first_name} '
+                         f'{update.effective_chat.last_name} '
+                         f'хочет присоединиться к домашней группе Вашего региона\n\n'
+                         f'Вот информация о группе и контакт человека: \n\n'
+                         f'{group_info_text}',
+                    parse_mode=ParseMode.HTML
+                )
+                logging.info(
+                    f'Отправлено сообщение Яне о том что к ДГ лидера {group_leader.name} '
+                    f'хочет присоединиться новый человек '
+                    f'{update.effective_chat.first_name} {update.effective_chat.last_name}')
+                await context.bot.send_contact(
+                    chat_id=305061142,
+                    contact=update.message.contact
+                )
+                logging.info('Отправлен контакт')
+            else:
+                group_leader_chat_id = group_leader.telegram_id or os.getenv('ADMIN_ID')
+                logging.info(f'Получен id чата лидера или админа: {group_leader_chat_id}')
+                await context.bot.send_message(
+                    chat_id=group_leader_chat_id,
+                    text=f'{update.effective_chat.first_name} '
+                         f'{update.effective_chat.last_name} '
+                         f'хочет присоединиться к Вашей домашней группе. '
+                         f'Вот его/ее контакт:',
+                )
+                logging.info('Отправлено сообщение лидеру ДГ о том что к нему хочет присоединиться новый человек '
+                             f'{update.effective_chat.first_name} {update.effective_chat.last_name}')
+                await context.bot.send_contact(
+                    chat_id=group_leader_chat_id,
+                    contact=update.message.contact
+                )
+                logging.info('Отправлен контакт')
 
-            group_leader_chat_id = group_leader.telegram_id or os.getenv('ADMIN_ID')
-            logging.info(f'Получен id чата лидера или админа: {group_leader_chat_id}')
-            await context.bot.send_message(
-                chat_id=group_leader_chat_id,
-                text=f'{update.effective_chat.first_name} '
-                     f'{update.effective_chat.last_name} '
-                     f'хочет присоединиться к Вашей домашней группе. '
-                     f'Вот его/ее контакт:',
-            )
-            logging.info('Отправлено сообщение лидеру ДГ о том что к нему хочет присоединиться новый человек '
-                         f'{update.effective_chat.first_name} {update.effective_chat.last_name}')
-            await context.bot.send_contact(
-                chat_id=group_leader_chat_id,
-                contact=update.message.contact
-            )
-            logging.info('Отправлен контакт')
-
-            regional_leader_chat_id = regional_leader.telegram_id \
-                if regional_leader is not None and regional_leader.telegram_id is not None \
-                else os.getenv('ADMIN_ID')
-            logging.info(f'Получен id чата регионального лидера или админа: {regional_leader_chat_id}')
-            await context.bot.send_message(
-                chat_id=regional_leader_chat_id,
-                text=f'{update.effective_chat.first_name} '
-                     f'{update.effective_chat.last_name} '
-                     f'хочет присоединиться к домашней группе Вашего региона\n\n'
-                     f'Вот информация о группе и контакт человека: \n\n'
-                     f'{group_info_text}',
-                parse_mode=ParseMode.HTML
-            )
-            logging.info(
-                f'Отправлено сообщение региональному лидеру о том что к ДГ лидера {group_leader.name} '
-                f'хочет присоединиться новый человек '
-                f'{update.effective_chat.first_name} {update.effective_chat.last_name}')
-            await context.bot.send_contact(
-                chat_id=regional_leader_chat_id,
-                contact=update.message.contact
-            )
-            logging.info('Отправлен контакт')
+                regional_leader_chat_id = regional_leader.telegram_id \
+                    if regional_leader is not None and regional_leader.telegram_id is not None \
+                    else os.getenv('ADMIN_ID')
+                logging.info(f'Получен id чата регионального лидера или админа: {regional_leader_chat_id}')
+                await context.bot.send_message(
+                    chat_id=regional_leader_chat_id,
+                    text=f'{update.effective_chat.first_name} '
+                         f'{update.effective_chat.last_name} '
+                         f'хочет присоединиться к домашней группе Вашего региона\n\n'
+                         f'Вот информация о группе и контакт человека: \n\n'
+                         f'{group_info_text}',
+                    parse_mode=ParseMode.HTML
+                )
+                logging.info(
+                    f'Отправлено сообщение региональному лидеру о том что к ДГ лидера {group_leader.name} '
+                    f'хочет присоединиться новый человек '
+                    f'{update.effective_chat.first_name} {update.effective_chat.last_name}')
+                await context.bot.send_contact(
+                    chat_id=regional_leader_chat_id,
+                    contact=update.message.contact
+                )
+                logging.info('Отправлен контакт')
             add_new_join_request(
                 user.first_name,
                 user.last_name,
@@ -336,7 +366,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
-def groups_process(group, context):
+def groups_process(group):
     time_str = group.time.strftime('%H:%M')
     home_group = f'Метро: <b>{group.metro}</b>\n' \
                  f'День: <b>{group.day}</b>\nВремя: <b>{time_str}</b>\n' \
@@ -345,9 +375,4 @@ def groups_process(group, context):
                  f'Лидер: <b>{group.leader.name}</b>'
     logging.info(f'Выбранная группа: {home_group}')
     logging.info(f'Лидер группы: {group.leader.name}')
-    context.user_data['home_group_leader_id'] = group.leader.id
-    context.user_data['home_group_info_text'] = home_group
-    context.user_data['home_group_is_youth'] = \
-        group.age == 'Молодежные (до 25)' or group.age == 'Молодежные (после 25)'
-    logging.info('Обновили контекст')
     return home_group

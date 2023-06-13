@@ -116,7 +116,7 @@ async def conversation_result(update: Update, context: ContextTypes.DEFAULT_TYPE
         if found_groups:
             logging.info('Найдены группы')
             for group in found_groups:
-                group_text = groups_process(group, context)
+                group_text = groups_process(group)
                 await context.bot.send_message(
                     chat_id=update.effective_chat.id,
                     text=group_text,
