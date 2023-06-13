@@ -215,7 +215,7 @@ async def send_contact_response(update: Update, context: ContextTypes.DEFAULT_TY
                     .select()
                     .join(RegionalGroupLeaders)
                     .join(GroupLeader)
-                    .where(GroupLeader == group_leader)
+                    .where(GroupLeader.id == group_leader.id)
                     .get_or_none()
                 )
                 if regional_leader is not None:

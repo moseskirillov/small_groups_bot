@@ -4,12 +4,10 @@ PICK_GROUP_TEXT = 'Подобрать группу'
 WRITE_METRO_TEXT = 'Написать название метро'
 RETURN_BUTTON_TEXT = 'Вернуться'
 JOIN_TO_GROUP_TEXT = 'Присоединиться'
-WRITE_TO_ADMIN_TEXT = 'Написать администратору'
 OPEN_NEW_GROUP_TEXT = 'Открыть свою группу'
 SEND_CONTACT_TEXT = 'Отправить контакт'
 
 search_is_empty_keyboard = InlineKeyboardMarkup([
-    [InlineKeyboardButton(WRITE_TO_ADMIN_TEXT, url='https://t.me/Pelna')],
     [InlineKeyboardButton(OPEN_NEW_GROUP_TEXT, callback_data='open_group')],
     [InlineKeyboardButton(RETURN_BUTTON_TEXT, callback_data='return_to_start')]
 ])
