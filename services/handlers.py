@@ -10,7 +10,7 @@ from telegram import Update, ReplyKeyboardRemove
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
-from database.db_connection import connect_to_bot
+from database.db_connection import connect_to_bot, connect_to_wolrus_hub
 from models.group_leader_model import GroupLeader
 from models.group_model import Group
 from models.join_request_model import JoinRequest
@@ -319,7 +319,7 @@ async def import_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     with connect_to_bot.atomic():
         user = User.get_or_none(user_id=update.effective_chat.id)
         if user is not None and user.is_admin:
-            parse_data_from_hub()
+            parse_data_from_hub(connect_to_wolrus_hub)
             parse_data_from_google(os.getenv('WOL_HOME_GROUP_GENERAL_ID'))
             parse_data_from_google(os.getenv('WOL_HOME_GROUP_YOUTH_ID'))
             await context.bot.send_message(chat_id=update.effective_chat.id, text='Импорт успешно завершен')
